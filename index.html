@@ -88,6 +88,8 @@ h1{font-size:26px;line-height:1.3;margin:6px 0 4px;color:var(--teal)}
 .fbl{margin:4px 0;font-size:15px;padding:6px 10px;border-radius:8px}
 .fbl.no{background:var(--badbg)}.fbl.ok{background:var(--okbg)}
 .xfer{margin-top:22px;background:var(--card);border-radius:14px;padding:12px 14px}.xfer .back{margin:4px 4px 0 0}
+.curbox{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;border-left:6px solid var(--blue)}.curbox .start{margin:10px 0 8px}
+.del{border:0;background:var(--badbg);color:var(--ink);border-radius:8px;padding:2px 10px;font-size:13px;margin-left:6px}
 .jy{margin-top:8px;font-size:15px;border-left:4px solid var(--violet);padding-left:10px}
 .nav{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg);display:flex;gap:10px;max-width:640px;margin:0 auto}
 .nav button{flex:1;border:0;border-radius:14px;padding:14px;font-weight:700;font-size:17px}
@@ -103,12 +105,12 @@ const D={"chapters":[{"id":"intro","name":"衍生性商品基本觀念"},{"id":"
 const QS=D.qs, GS=D.groups, CH=D.chapters;
 const CHN=Object.fromEntries(CH.map(c=>[c.id,c.name]));
 const KEY='dfx-quiz-v1';
-let st={ans:{},wrong:[],onlyRep:true,exams:[],cur:null};
+let st={ans:{},wrong:[],onlyRep:true,exams:[],cur:null,del:[]};
 try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s)st=Object.assign(st,s);}catch(e){}
 let DB=null,UID=null,syncState='local',tmr=null;
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}
   }
-async function push(){try{await DB.doc('data/users/'+UID+'/progress').set({ans:st.ans,wrong:st.wrong,onlyRep:st.onlyRep,exams:st.exams||[],cur:st.cur||null,t:Date.now()});syncState='cloud';}catch(e){syncState='err';}
+async function push(){try{await DB.doc('data/users/'+UID+'/progress').set({ans:st.ans,wrong:st.wrong,onlyRep:st.onlyRep,exams:st.exams||[],cur:st.cur||null,del:st.del||[],t:Date.now()});syncState='cloud';}catch(e){syncState='err';}
   const el=document.getElementById('sync');if(el)el.textContent=syncMsg();}
 function syncMsg(){return '📱 離線版：進度存在這支手機裡（不會同步到 Claude 帳號）';}
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
@@ -125,6 +127,7 @@ function render(){
   if(view.name==='ch')return chapter();
   if(view.name==='quiz')return quiz();
   if(view.name==='examSel')return examSel();
+  if(view.name==='examIntro')return examIntro();
   if(view.name==='exam')return examView();
   if(view.name==='examRes')return examRes();
 }
@@ -148,7 +151,7 @@ function chapter(){
   if(!vg.length){app.innerHTML=h+'<div class="empty">這一章沒有重複考點。取消首頁的「只看考過 2 次以上」就能看到全部題目。</div>';return;}
   h+=`<button class="start" onclick="startGroup('${view.c}',0)">從第一個考點開始刷</button>`;
   vg.forEach((x,k)=>{const s=stat(x.g.q);const n=x.g.q.length;
-    h+=`<button class="grp" onclick="startGroup('${view.c}',${k})"><div class="s">${esc(QS[x.g.q[0]][2])}</div><div class="m"><span class="freq ${n>1?'':'one'}">考過 ${n} 次</span>${s.d===n?`<span class="done">已完成 ${s.o}/${n}</span>`:s.d?`<span>已答 ${s.d}/${n}</span>`:''}${x.g.jy?`<span>JY p.${esc(x.g.jy)}</span>`:''}</div></button>`;});
+    h+=`<button class="grp" onclick="startGroup('${view.c}',${k})"><div class="s">${esc(QS[x.g.q[0]][2])}</div><div class="m"><span class="freq ${n>1?'':'one'}">考過 ${n} 次</span>${s.d===n?`<span class="done">已完成 ${s.o}/${n}</span>`:s.d?`<span>已答 ${s.d}/${n}</span>`:''}</div></button>`;});
   app.innerHTML=h;
 }
 function startGroup(c,k){const vg=visGroups(c);const list=[];vg.forEach((x,gk)=>x.g.q.forEach((q,j)=>list.push({q,gi:x.i,gk,j,n:x.g.q.length})));
@@ -171,7 +174,7 @@ function quiz(){
   if(p!==null){const ok=okAns(it.q,p);
     h+=`<div class="fb ${ok?'ok':'no'}"><p><b>${ok?'答對了':'答錯了，已收進錯題本'}</b></p><p>正確答案：${esc(ansText(it.q))}</p>${q[5]?`<p>${esc(q[5])}</p>`:''}</div>`;
     const jyTxt=g.jy?(g.lo?`想對照原書：JY 筆記 p.${esc(g.jy)} 附近`:`想對照原書：JY 筆記 p.${esc(g.jy)}`):'';
-    const body=`${g.ex?`<p>${esc(g.ex)}</p>`:`<p class="muted">這個考點的說明還沒補上，先翻 JY 筆記看看。</p>`}${jyTxt?`<p class="pg">${jyTxt}</p>`:''}`;
+    const body=`${g.ex?`<p>${esc(g.ex)}</p>`:`<p class="muted">這個考點的說明還沒補上，</p>`}`;
     h+=ok?`<details class="exp"><summary>看說明</summary>${body}</details>`:`<div class="exp open"><div class="eh">為什麼是這個答案</div>${body}</div>`;
     if(c==='law')h+=`<div class="law">法規題可能因修法改答案，同考點以期數最新的那題為準。</div>`;}
   h+=`</div>`;
@@ -194,19 +197,26 @@ function examSel(){
   const done={};(st.exams||[]).forEach(e=>{(done[e.p]=done[e.p]||[]).push(e.score);});
   let h=`<div class="top"><button class="back" onclick="go({name:'home'})">‹ 目錄</button><div class="ttl">模擬考</div></div>
   <p class="sub">跟正式考試一樣：60 題，1–40 題每題 1.5 分、41–60 題每題 2 分，70 分及格，限時 90 分鐘。作答時不顯示對錯，交卷後才計分，答錯的題目自動進錯題本。</p>`;
-  if(st.cur)h+=`<button class="start" onclick="resumeExam()">繼續作答：第 ${st.cur.p} 期（已答 ${Object.keys(st.cur.picks).length} 題）</button>`;
+  if(st.cur)h+=`<div class="curbox"><div>第 ${st.cur.p} 期還沒交卷（已答 ${Object.keys(st.cur.picks).length} 題）</div><button class="start" onclick="resumeExam()">繼續作答</button><button class="back" onclick="abandonExam()">放棄這份（不計分、不留紀錄）</button></div>`;
   h+=`<button class="start" style="background:var(--violet)" onclick="startExam()">隨機抽一期${Object.keys(done).length?'（優先抽還沒考過的）':''}</button>`;
   if((st.exams||[]).length){h+=`<div class="kp" style="margin-top:6px"><b>考試紀錄</b></div>`;
-    st.exams.slice().reverse().forEach(e=>{const d=new Date(e.at);h+=`<div class="grp" style="cursor:default"><div class="s">第 ${e.p} 期　<b style="color:${e.score>=70?'var(--teal)':'var(--bad)'}">${e.score} 分</b>${e.score>=70?'　及格':'　未及格'}</div><div class="m">${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}・用時 ${Math.round(e.sec/60)} 分鐘</div></div>`;});}
+    st.exams.slice().reverse().forEach(e=>{const d=new Date(e.at);h+=`<div class="grp" style="cursor:default"><div class="s">第 ${e.p} 期　<b style="color:${e.score>=70?'var(--teal)':'var(--bad)'}">${e.score} 分</b>${e.score>=70?'　及格':'　未及格'}</div><div class="m">${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}・用時 ${Math.round(e.sec/60)} 分鐘　<button class="del" onclick="delExam(${e.at})">刪除</button></div></div>`;});}
   h+=`<div class="kp" style="margin-top:14px"><b>或指定一期</b></div><div class="pgrid">`;
   for(let p=1;p<=20;p++)h+=`<button class="pbtn ${done[p]?'did':''}" onclick="startExam(${p})">${p}${done[p]?`<small>${Math.max(...done[p])}</small>`:''}</button>`;
   app.innerHTML=h+`</div>`;
 }
 function startExam(p){
-  if(st.cur&&!confirm('有一份第 '+st.cur.p+' 期還沒交卷，要放棄它、開新的一份嗎？'))return;
   if(!p){const done=new Set((st.exams||[]).map(e=>e.p));let pool=[];for(let i=1;i<=20;i++)if(!done.has(i))pool.push(i);if(!pool.length)for(let i=1;i<=20;i++)pool.push(i);p=pool[Math.floor(Math.random()*pool.length)];}
-  st.cur={p,picks:{},start:Date.now(),pos:0};save();go({name:'exam'});
+  go({name:'examIntro',p});
 }
+function examIntro(){const p=view.p;const past=(st.exams||[]).filter(e=>e.p===p);
+  app.innerHTML=`<div class="top"><button class="back" onclick="go({name:'examSel'})">‹ 模擬考</button><div class="ttl">第 ${p} 期模擬考</div></div>
+  <div class="qcard"><p class="stem">準備好就開始，按下後才會計時。</p><p class="sub">60 題・90 分鐘・70 分及格。中途可以按「暫離」，回來繼續作答。${past.length?'<br>這期考過 '+past.length+' 次，最高 '+Math.max(...past.map(e=>e.score))+' 分。':''}</p>
+  ${st.cur?`<p class="sub" style="color:var(--bad)">注意：你還有第 ${st.cur.p} 期沒交卷，開始這份會放棄那一份。</p>`:''}
+  <button class="start" onclick="beginExam(${p})">開始作答</button><button class="back" onclick="go({name:'examSel'})">先不要，返回</button></div>`;}
+function beginExam(p){st.cur={p,picks:{},start:Date.now(),pos:0};save();go({name:'exam'});}
+function abandonExam(){if(!confirm('放棄第 '+st.cur.p+' 期這份？已作答的內容不會計分、不留紀錄。'))return;st.cur=null;save();render();}
+function delExam(at){if(!confirm('刪除這筆考試紀錄？'))return;st.exams=st.exams.filter(e=>e.at!==at);st.del=[...(st.del||[]),at];save();render();}
 function resumeExam(){go({name:'exam'});}
 let timerI=null;
 function tLeft(){return Math.max(0,90*60-Math.floor((Date.now()-st.cur.start)/1000));}
