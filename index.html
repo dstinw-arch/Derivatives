@@ -90,6 +90,7 @@ h1{font-size:26px;line-height:1.3;margin:6px 0 4px;color:var(--teal)}
 .xfer{margin-top:22px;background:var(--card);border-radius:14px;padding:12px 14px}.xfer .back{margin:4px 4px 0 0}
 .curbox{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;border-left:6px solid var(--blue)}.curbox .start{margin:10px 0 8px}
 .del{border:0;background:var(--badbg);color:var(--ink);border-radius:8px;padding:2px 10px;font-size:13px;margin-left:6px}
+.ver{font-size:13px;color:var(--soft);margin:18px 0 0}
 .jy{margin-top:8px;font-size:15px;border-left:4px solid var(--violet);padding-left:10px}
 .nav{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg);display:flex;gap:10px;max-width:640px;margin:0 auto}
 .nav button{flex:1;border:0;border-radius:14px;padding:14px;font-weight:700;font-size:17px}
@@ -113,7 +114,7 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}
 async function push(){try{await DB.doc('data/users/'+UID+'/progress').set({ans:st.ans,wrong:st.wrong,onlyRep:st.onlyRep,exams:st.exams||[],cur:st.cur||null,del:st.del||[],t:Date.now()});syncState='cloud';}catch(e){syncState='err';}
   const el=document.getElementById('sync');if(el)el.textContent=syncMsg();}
 function syncMsg(){return '📱 離線版：進度存在這支手機裡（不會同步到 Claude 帳號）';}
-if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{});}
 const app=document.getElementById('app');
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function okAns(qi,pick){const a=QS[qi][4];if(a===0)return true;if(a===34)return pick===3||pick===4;return pick===a;}
@@ -142,7 +143,7 @@ function home(){
     const vg=visGroups(c.id);const qs=vg.flatMap(x=>x.g.q);const s=stat(qs);
     h+=`<button class="ch" onclick="go({name:'ch',c:'${c.id}'})"><div class="t">${c.name}</div><div class="m">${vg.length} 個考點・${qs.length} 題・已答 ${s.d}</div><div class="bar"><i style="width:${qs.length?s.d/qs.length*100:0}%"></i></div></button>`;
   });
-  h+=`<div class="xfer"><div class="kp"><b>搬移進度</b>（線上版和手機離線版之間）</div><button class="back" onclick="exportProg()">複製我的進度碼</button> <button class="back" onclick="importProg()">貼上進度碼匯入</button></div><button class="reset" onclick="if(confirm('清除所有作答紀錄與錯題本？')){st.ans={};st.wrong=[];save();render()}">清除作答紀錄</button>`;
+  h+=`<div class="xfer"><div class="kp"><b>搬移進度</b>（線上版和手機離線版之間）</div><button class="back" onclick="exportProg()">複製我的進度碼</button> <button class="back" onclick="importProg()">貼上進度碼匯入</button></div><p class="ver">離線版　版本：115/10/01</p><button class="reset" onclick="if(confirm('清除所有作答紀錄與錯題本？')){st.ans={};st.wrong=[];save();render()}">清除作答紀錄</button>`;
   app.innerHTML=h;
 }
 function chapter(){
