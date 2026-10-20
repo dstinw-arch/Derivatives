@@ -104,6 +104,11 @@ h1{font-size:26px;line-height:1.3;margin:6px 0 4px;color:var(--teal)}
 .exp .xs{font-size:12px;color:var(--soft);margin-top:12px}
 .stem{line-height:1.85}
 .opt{line-height:1.6}
+.today{display:flex;gap:14px;align-items:center;background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:12px;border-left:6px solid var(--violet)}
+.today.hit{border-left-color:var(--ok)}
+.today .tn{text-align:center;flex:none}.today .tn b{display:block;font-size:34px;line-height:1.1;color:var(--violet)}.today.hit .tn b{color:var(--teal)}
+.today .tn span{font-size:12px;color:var(--soft)}.today .tm{flex:1;min-width:0;font-weight:700;font-size:15px}
+.today .tm small{display:block;font-weight:400;color:var(--soft);font-size:13px;margin-top:6px}
 </style>
 </head>
 <body>
@@ -113,12 +118,15 @@ const D={"chapters":[{"id":"intro","name":"衍生性商品基本觀念"},{"id":"
 const QS=D.qs, GS=D.groups, CH=D.chapters;
 const CHN=Object.fromEntries(CH.map(c=>[c.id,c.name]));
 const KEY='dfx-quiz-v1';
-let st={ans:{},wrong:[],onlyRep:true,exams:[],cur:null,del:[]};
+let st={ans:{},wrong:[],onlyRep:true,exams:[],cur:null,del:[],day:{}};
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const addDay=n=>{if(!st.day||typeof st.day!=='object')st.day={};const k=today();st.day[k]=(st.day[k]||0)+n;};
+const mergeDay=d=>{if(!d)return;if(!st.day)st.day={};for(const[k,v]of Object.entries(d))st.day[k]=Math.max(st.day[k]||0,v||0);};
 try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s)st=Object.assign(st,s);}catch(e){}
 let DB=null,UID=null,syncState='local',tmr=null;
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}
   if(DB&&UID){clearTimeout(tmr);tmr=setTimeout(push,1200);}}
-async function push(){try{await DB.doc('data/users/'+UID+'/progress').set({ans:st.ans,wrong:st.wrong,onlyRep:st.onlyRep,exams:st.exams||[],cur:st.cur||null,del:st.del||[],t:Date.now()});syncState='cloud';}catch(e){syncState='err';}
+async function push(){try{await DB.doc('data/users/'+UID+'/progress').set({ans:st.ans,wrong:st.wrong,onlyRep:st.onlyRep,exams:st.exams||[],cur:st.cur||null,del:st.del||[],day:st.day||{},t:Date.now()});syncState='cloud';}catch(e){syncState='err';}
   const el=document.getElementById('sync');if(el)el.textContent=syncMsg();}
 function syncMsg(){return syncState==='cloud'?'✓ 進度已存到你的 Claude 帳號，換手機或電腦都接得上':(syncState==='err'?'⚠ 進度沒有存到帳號，只存在這台裝置，請截圖告訴 Claude':'連線中…進度先存在這台裝置');}
 (async()=>{try{
@@ -131,7 +139,7 @@ function syncMsg(){return syncState==='cloud'?'✓ 進度已存到你的 Claude 
     if(typeof r.onlyRep==='boolean')st.onlyRep=r.onlyRep;
     const seenAt=new Set((st.exams||[]).map(e=>e.at));st.exams=[...(st.exams||[]),...(r.exams||[]).filter(e=>!seenAt.has(e.at))].sort((a,b)=>a.at-b.at);
     if(!st.cur&&r.cur)st.cur=r.cur;
-    st.del=[...new Set([...(st.del||[]),...(r.del||[])])];st.exams=st.exams.filter(e=>!st.del.includes(e.at));}
+    st.del=[...new Set([...(st.del||[]),...(r.del||[])])];mergeDay(r.day);st.exams=st.exams.filter(e=>!st.del.includes(e.at));}
   syncState='cloud';try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}
   await push();if(view.name==='home'||view.name==='examSel')render();
 }catch(e){syncState='err';const el=document.getElementById('sync');if(el)el.textContent=syncMsg();}})();
@@ -172,10 +180,14 @@ function render(){
   if(view.name==='exam')return examView();
   if(view.name==='examRes')return examRes();
 }
+function todayBox(){const n=(st.day&&st.day[today()])||0;const goal=10;
+  const days=Object.keys(st.day||{}).filter(k=>st.day[k]>0).length;
+  const msg=n>=goal?'今天目標達成，做得好！':(n?`再 ${goal-n} 題就達成今天的目標`:'今天的目標：10 題就好');
+  return `<div class="today${n>=goal?' hit':''}"><div class="tn"><b>${n}</b><span>今天已做（題）</span></div><div class="tm"><div>${msg}</div><div class="bar"><i style="width:${Math.min(100,n/goal*100)}%"></i></div>${days>1?`<small>已經有 ${days} 天有讀書</small>`:''}</div></div>`;}
 function home(){
   const all=stat(QS.map((_,i)=>i));
   let h=`<h1>衍生性金融商品<br>同考點刷題</h1><p class="sub">第 1–20 期歷屆試題共 ${QS.length} 題，相似題已排在一起。越常考的考點排越前面。</p>
-  <p class="sub" id="sync" style="font-weight:700;color:var(--teal)">${syncMsg()}</p><div class="stats"><div class="stat"><b>${all.d}</b><span>已作答題數</span></div><div class="stat"><b>${all.d?Math.round(all.o/all.d*100):0}%</b><span>答對率</span></div></div>
+  <p class="sub" id="sync" style="font-weight:700;color:var(--teal)">${syncMsg()}</p>${todayBox()}<div class="stats"><div class="stat"><b>${all.d}</b><span>已作答題數</span></div><div class="stat"><b>${all.d?Math.round(all.o/all.d*100):0}%</b><span>答對率</span></div></div>
   <button class="exambtn" onclick="go({name:'examSel'})">模擬考：整期 60 題、計分${st.cur?'（有一份考到一半）':''}</button>
   <button class="wrongbtn" onclick="startWrong()">錯題本：${st.wrong.length} 題${st.wrong.length?'，點這裡複習':''}</button>
   <label class="toggle"><input type="checkbox" ${st.onlyRep?'checked':''} onchange="st.onlyRep=this.checked;save();render()">只看考過 2 次以上的考點（先拿高頻分）</label>`;
@@ -183,7 +195,7 @@ function home(){
     const vg=visGroups(c.id);const qs=vg.flatMap(x=>x.g.q);const s=stat(qs);
     h+=`<button class="ch" onclick="go({name:'ch',c:'${c.id}'})"><div class="t">${c.name}</div><div class="m">${vg.length} 個考點・${qs.length} 題・已答 ${s.d}</div><div class="bar"><i style="width:${qs.length?s.d/qs.length*100:0}%"></i></div></button>`;
   });
-  h+=`<div class="xfer"><div class="kp"><b>搬移進度</b>（線上版和手機離線版之間）</div><button class="back" onclick="exportProg()">複製我的進度碼</button> <button class="back" onclick="importProg()">貼上進度碼匯入</button></div><p class="ver">版本：115/10/01</p><button class="reset" onclick="if(confirm('清除所有作答紀錄與錯題本？')){st.ans={};st.wrong=[];save();render()}">清除作答紀錄</button>`;
+  h+=`<div class="xfer"><div class="kp"><b>搬移進度</b>（線上版和手機離線版之間）</div><button class="back" onclick="exportProg()">複製我的進度碼</button> <button class="back" onclick="importProg()">貼上進度碼匯入</button></div><p class="ver">版本：115/10/20（解析條列＋今日題數）</p><button class="reset" onclick="if(confirm('清除所有作答紀錄與錯題本？')){st.ans={};st.wrong=[];save();render()}">清除作答紀錄</button>`;
   app.innerHTML=h;
 }
 function chapter(){
@@ -222,7 +234,7 @@ function quiz(){
   app.innerHTML=h;
 }
 function pick(n){const it=view.list[view.pos];const ok=okAns(it.q,n);view.picked=n;
-  st.ans[it.q]=ok;
+  st.ans[it.q]=ok;addDay(1);
   const w=st.wrong.indexOf(it.q);
   if(!ok&&w<0)st.wrong.push(it.q);
   if(ok&&view.mode==='wrong'&&w>=0)st.wrong.splice(w,1);
@@ -281,7 +293,7 @@ function examJump(i){if(i<0||i>59)return;st.cur.pos=i;save();render();window.scr
 function submitExam(){const c=st.cur;const n=Object.keys(c.picks).length;
   if(n<60&&!confirm('還有 '+(60-n)+' 題沒作答，確定要交卷嗎？'))return;
   const score=scoreOf(c.p,c.picks);const sec=Math.floor((Date.now()-c.start)/1000);
-  EXQ[c.p].forEach(qi=>{const k=c.picks[qi];const ok=!!k&&okAns(qi,k);st.ans[qi]=ok;const w=st.wrong.indexOf(qi);if(!ok&&w<0)st.wrong.push(qi);});
+  addDay(n);EXQ[c.p].forEach(qi=>{const k=c.picks[qi];const ok=!!k&&okAns(qi,k);st.ans[qi]=ok;const w=st.wrong.indexOf(qi);if(!ok&&w<0)st.wrong.push(qi);});
   const rec={p:c.p,score,sec,at:Date.now(),picks:c.picks};st.exams=[...(st.exams||[]),rec];st.cur=null;save();
   clearInterval(timerI);go({name:'examRes',rec});}
 function examRes(){const r=view.rec;const list=EXQ[r.p];
@@ -295,12 +307,12 @@ function examRes(){const r=view.rec;const list=EXQ[r.p];
     ${g&&g.ex?`<div class="exp open"><div class="eh">為什麼是這個答案</div>${fmtEx(g.ex)}</div>`:''}</div>`;});
   app.innerHTML=h;}
 
-function exportProg(){const code=btoa(unescape(encodeURIComponent(JSON.stringify({ans:st.ans,wrong:st.wrong,exams:(st.exams||[]).map(e=>({p:e.p,score:e.score,sec:e.sec,at:e.at}))}))));
+function exportProg(){const code=btoa(unescape(encodeURIComponent(JSON.stringify({ans:st.ans,wrong:st.wrong,exams:(st.exams||[]).map(e=>({p:e.p,score:e.score,sec:e.sec,at:e.at})),day:st.day||{}}))));
   const done=()=>alert('進度碼已複製。到另一個版本按「貼上進度碼匯入」即可。');
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(code).then(done,()=>prompt('請長按全選複製這段進度碼：',code));else prompt('請長按全選複製這段進度碼：',code);}
 function importProg(){const code=prompt('把進度碼貼在這裡：');if(!code)return;
   try{const r=JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
-    st.ans=Object.assign({},r.ans||{},st.ans);st.wrong=[...new Set([...st.wrong,...(r.wrong||[])])];
+    st.ans=Object.assign({},r.ans||{},st.ans);st.wrong=[...new Set([...st.wrong,...(r.wrong||[])])];mergeDay(r.day);
     const seen=new Set((st.exams||[]).map(e=>e.at));st.exams=[...(st.exams||[]),...(r.exams||[]).filter(e=>!seen.has(e.at))].sort((a,b)=>a.at-b.at);
     save();render();alert('匯入完成：已合併 '+Object.keys(r.ans||{}).length+' 題作答紀錄。');
   }catch(e){alert('進度碼格式不對，請確認有完整複製。');}}
